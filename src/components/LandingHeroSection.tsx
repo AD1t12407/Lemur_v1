@@ -1,8 +1,9 @@
 import React, { Suspense, useState } from 'react';
-import { motion } from 'framer-motion';
-import { ArrowRight, ChevronDown, Play, CheckCircle, Mail } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowRight, ChevronDown, CheckCircle } from 'lucide-react';
 import Spline from '@splinetool/react-spline';
 import { ApiService } from '../services/api';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 const LandingHeroSection: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -10,6 +11,9 @@ const LandingHeroSection: React.FC = () => {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Track if viewport is extra-large or above
+  const isXL = useMediaQuery('(min-width: 1280px)');
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -71,7 +75,7 @@ const LandingHeroSection: React.FC = () => {
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.1, ease: "easeOut" }}
-                className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold text-gray-900 dark:text-white leading-[0.95] tracking-tight transition-colors duration-500"
+                className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl 2xl:text-7xl font-extrabold text-gray-900 dark:text-white leading-[1.05] tracking-tight transition-colors duration-500"
               >
                 From Lead to Deal
                 <br />
@@ -90,7 +94,7 @@ const LandingHeroSection: React.FC = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, delay: 0.3, ease: "easeOut" }}
-                className="text-sm sm:text-base md:text-lg lg:text-xl text-gray-600 dark:text-gray-300 leading-relaxed font-normal max-w-2xl transition-colors duration-500 text-justify"
+                className="text-sm sm:text-base md:text-lg lg:text-xl text-gray-700 dark:text-gray-300 leading-relaxed font-medium max-w-3xl transition-colors duration-500"
               >
                 The complete business automation platform for consulting firms and freelancers. From the first meeting to the first proposal, we handle the heavy lifting so you can focus on closing deals.
               </motion.p>
@@ -203,54 +207,46 @@ const LandingHeroSection: React.FC = () => {
                 </div>
               </div>
             </motion.div>
+          </div>
 
             {/* Trust indicators - Apple minimal style */}
-            
 
-          </div>
+            {/* Right Side – 3D Spline Bot */}
+            <AnimatePresence initial={false}>
+              {isXL && (
+                <motion.div
+                  key="spline-hero"
+                  initial={{ opacity: 0, scale: 0.9, y: 120 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.8, y: 20 }}
+                  transition={{ duration: 1.4, ease: 'easeOut' }}
+                  className="relative top-0.7 right-0 sm:right-4 xl:right-0 transform -translate-y-1/2 z-10 lg:w-[600px] lg:h-[600px] xl:w-[900px] xl:h-[800px] pointer-events-none"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 dark:from-blue-500/10 dark:to-purple-500/10 rounded-3xl blur-3xl transition-colors duration-500"></div>
 
-          {/* Right Side - 3D Scene with premium treatment */}
-          <div className="hidden lg:block absolute top-1/2 right-16 transform -translate-y-1/2 z-10 w-[900px] h-[800px] pointer-events-none">
-    <motion.div
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 1.2, delay: 0.2, ease: "easeOut" }}
-      className="relative w-full h-full"
-    >
-      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-purple-500/5 dark:from-blue-500/10 dark:to-purple-500/10 rounded-3xl blur-3xl transition-colors duration-500"></div>
-
-      <Suspense
-        fallback={
-          <div className="w-full h-full flex items-center justify-center">
-            <motion.div
-              animate={{ opacity: [0.5, 1, 0.5] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              className="w-16 h-16 border-2 border-gray-300 dark:border-white/20 rounded-full flex items-center justify-center transition-colors duration-500"
-            >
-              <div className="w-8 h-8 border-2 border-gray-900 dark:border-white border-t-transparent rounded-full animate-spin transition-colors duration-500"></div>
-            </motion.div>
-          </div>
-        }
-      >
-        <div
-          className="relative w-full h-full rounded-3xl overflow-hidden"
-          onMouseEnter={() => {
-            // trigger head movement or any hover animation if needed
-          }}
-        >
-          <Spline
-            scene="https://prod.spline.design/mhtNAO3CVpiYk4zx/scene.splinecode"
-            style={{ 
-              width: '100%', 
-              height: '100%',
-              pointerEvents: 'none',
-            }}
-          />
-        </div>
-      </Suspense>
-    </motion.div>
-  </div>
-         
+                  <Suspense
+                    fallback={
+                      <div className="w-full h-full flex items-center justify-center">
+                        <motion.div
+                          animate={{ opacity: [0.5, 1, 0.5] }}
+                          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+                          className="w-16 h-16 border-2 border-gray-300 dark:border-white/20 rounded-full flex items-center justify-center transition-colors duration-500"
+                        >
+                          <div className="w-8 h-8 border-2 border-gray-900 dark:border-white border-t-transparent rounded-full animate-spin transition-colors duration-500"></div>
+                        </motion.div>
+                      </div>
+                    }
+                  >
+                    <div className="relative w-full h-full rounded-3xl overflow-hidden">
+                      <Spline
+                        scene="https://prod.spline.design/mhtNAO3CVpiYk4zx/scene.splinecode"
+                        style={{ width: '100%', height: '100%', pointerEvents: 'none' }}
+                      />
+                    </div>
+                  </Suspense>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
         
           

@@ -408,6 +408,24 @@ export interface ApiMeetingsResponse {
   meetings: ApiMeeting[];
   total_meetings: number;
 }
+export interface ChatRequest {
+  query: string;
+  client_id?: number;
+}
+
+export interface ChatResponse {
+  response: string;
+  sources?: Array<{
+    document_id: string;
+    document_name: string;
+    relevance_score: number;
+    snippet: string;
+  }>;
+  query: string;
+  client_id?: number;
+  timestamp: string;
+}
+
 
 // API Service Class
 export class ApiService {
@@ -935,6 +953,20 @@ export class ApiService {
     const response = await this.post('/getacess', data);
     return response.data;
   }
+
+  // Chat API Methods
+
+  static async chatWithAllDocuments(query: string): Promise<ChatResponse> {
+    const response = await api.post('/chat', { query });
+    return response.data;
+  }
+
+  static async chatWithClientDocuments(query: string, clientId: number): Promise<ChatResponse> {
+    const response = await api.post('/chat', { query, client_id: clientId });
+    return response.data;
+  }
 }
+
+
 
 export default ApiService;

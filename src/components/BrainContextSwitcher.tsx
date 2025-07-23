@@ -1,71 +1,171 @@
-import React, { useState } from 'react';
-import { Brain, User, Building, ChevronDown, FileText, Clock, Database } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Building, ChevronDown, FileText, Clock, Database, Folder } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BrainContext } from '../types';
 import { cn } from '../utils/cn';
+import { ApiService } from '../services/api';
+import { useAuthStore } from '../stores/authStore';
+
+interface DocumentInfo {
+  id: string;
+  filename: string;
+  client_name?: string;
+  client_id?: number;
+  upload_date?: string;
+  file_size?: number;
+  file_type?: string;
+}
 
 interface BrainContextSwitcherProps {
-  selectedBrain: BrainContext;
-  onBrainChange: (brain: BrainContext) => void;
+  selectedMode: 'all' | 'client';
+  selectedClientId?: number;
+  onSelectionChange: (mode: 'all' | 'client', clientId?: number) => void;
   className?: string;
 }
 
-const defaultBrains: BrainContext[] = [
-  {
-    id: 'personal',
-    name: 'Your Brain',
-    type: 'personal',
-    description: 'Personalized assistant trained on your documents, notes, and history',
-    icon: 'user',
-    metadata: {
-      documentCount: 42,
-      lastUpdated: new Date(),
-      indexedSize: 2.1
-    }
-  },
-  {
-    id: 'company',
-    name: 'Company Brain',
-    type: 'company',
-    description: 'Collective assistant trained on organization-wide knowledge',
-    icon: 'building',
-    metadata: {
-      documentCount: 1247,
-      lastUpdated: new Date(),
-      indexedSize: 15.8
-    }
-  }
-];
-
 export const BrainContextSwitcher: React.FC<BrainContextSwitcherProps> = ({
-  selectedBrain,
-  onBrainChange,
+  selectedMode,
+  selectedClientId,
+  onSelectionChange,
   className
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [clients, setClients] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<DocumentInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuthStore();
 
-  const getIcon = (iconName: string) => {
-    switch (iconName) {
-      case 'user':
-        return <User className="h-5 w-5" />;
-      case 'building':
-        return <Building className="h-5 w-5" />;
-      default:
-        return <Brain className="h-5 w-5" />;
+  useEffect(() => {
+    if (user) {
+      loadData();
+    }
+  }, [user]);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      // Load clients with detailed logging
+      console.log('🔄 Starting to load clients...');
+      const clientsResponse = await ApiService.getMyClients();
+      console.log('📥 Full clients response:', clientsResponse);
+      console.log('📥 Response type:', typeof clientsResponse);
+      console.log('📥 Response keys:', Object.keys(clientsResponse || {}));
+      
+      // Try different possible response structures
+      let clientsArray = [];
+      if (clientsResponse?.clients) {
+        clientsArray = clientsResponse.clients;
+        console.log('✅ Found clients in response.clients:', clientsArray);
+      } else if (Array.isArray(clientsResponse)) {
+        clientsArray = clientsResponse;
+        console.log('✅ Response is direct array:', clientsArray);
+      } else if (clientsResponse?.data?.clients) {
+        clientsArray = clientsResponse.data.clients;
+        console.log('✅ Found clients in response.data.clients:', clientsArray);
+      } else if (clientsResponse?.data && Array.isArray(clientsResponse.data)) {
+        clientsArray = clientsResponse.data;
+        console.log('✅ Found clients in response.data as array:', clientsArray);
+      } else {
+        console.log('❌ Could not find clients array in response structure');
+        console.log('Available properties:', Object.keys(clientsResponse || {}));
+      }
+      
+      setClients(clientsArray);
+      console.log('💾 Set clients state:', clientsArray);
+      
+      // Load documents for each client
+      console.log('🔄 Starting to load documents for clients...');
+      const allDocs: DocumentInfo[] = [];
+      
+      for (const client of clientsArray) {
+        console.log(`🔄 Loading documents for client:`, client);
+        console.log(`🔄 Client ID: ${client.client_id}, Client Name: ${client.client_name}`);
+        
+        try {
+          const docsResponse = await ApiService.getClientDocuments(client.client_id.toString());
+          console.log(`📥 Documents response for client ${client.client_id}:`, docsResponse);
+          console.log(`📥 Response type:`, typeof docsResponse);
+          console.log(`📥 Response keys:`, Object.keys(docsResponse || {}));
+          
+          // Try different possible document response structures
+          let documentsArray = [];
+          if (docsResponse?.documents && Array.isArray(docsResponse.documents)) {
+            documentsArray = docsResponse.documents;
+            console.log(`✅ Found documents in response.documents:`, documentsArray);
+          } else if (Array.isArray(docsResponse)) {
+            documentsArray = docsResponse;
+            console.log(`✅ Response is direct array:`, documentsArray);
+          } else if (docsResponse?.data?.documents && Array.isArray(docsResponse.data.documents)) {
+            documentsArray = docsResponse.data.documents;
+            console.log(`✅ Found documents in response.data.documents:`, documentsArray);
+          } else if (docsResponse?.data && Array.isArray(docsResponse.data)) {
+            documentsArray = docsResponse.data;
+            console.log(`✅ Found documents in response.data as array:`, documentsArray);
+          } else {
+            console.log(`❌ Could not find documents array for client ${client.client_id}`);
+            console.log('Available properties:', Object.keys(docsResponse || {}));
+          }
+          
+          if (documentsArray.length > 0) {
+            const clientDocs = documentsArray.map((doc: any) => {
+              console.log(`📄 Processing document:`, doc);
+              return {
+                id: doc.id || doc.document_id || `doc_${Math.random()}`,
+                filename: doc.filename || doc.document_name || doc.name || 'Unnamed Document',
+                client_name: client.client_name || client.name,
+                client_id: client.client_id || client.id,
+                upload_date: doc.upload_date || doc.created_at || doc.date,
+                file_size: doc.file_size || doc.size,
+                file_type: doc.file_type || doc.document_type || doc.type
+              };
+            });
+            
+            console.log(`✅ Processed ${clientDocs.length} documents for client ${client.client_id}:`, clientDocs);
+            allDocs.push(...clientDocs);
+          }
+        } catch (error) {
+          console.error(`❌ Failed to load documents for client ${client.client_id}:`, error);
+          console.error('Error details:', error.response?.data || error.message);
+        }
+      }
+      
+      console.log(`💾 Setting documents state with ${allDocs.length} total documents:`, allDocs);
+      setDocuments(allDocs);
+      
+    } catch (error) {
+      console.error('❌ Failed to load data:', error);
+      console.error('Error details:', error.response?.data || error.message);
+    } finally {
+      setIsLoading(false);
+      console.log('✅ Loading complete');
     }
   };
 
-  const formatSize = (size: number) => {
-    return `${size.toFixed(1)} GB`;
+  // Calculate current selection details
+  const getCurrentSelection = () => {
+    if (selectedMode === 'all') {
+      return {
+        name: 'All Company Documents',
+        description: 'Search across all company documents and knowledge',
+        documentCount: documents.length
+      };
+    } else {
+      const selectedClient = clients.find(c => c.client_id === selectedClientId);
+      const clientDocs = documents.filter(d => d.client_id === selectedClientId);
+      
+      return {
+        name: selectedClient?.client_name || selectedClient?.name || 'Select Client',
+        description: `Documents specific to ${selectedClient?.client_name || selectedClient?.name || 'selected client'}`,
+        documentCount: clientDocs.length
+      };
+    }
   };
 
-  const formatDocumentCount = (count: number) => {
-    return count > 1000 ? `${(count / 1000).toFixed(1)}k` : count.toString();
-  };
+  const currentSelection = getCurrentSelection();
+  const totalDocuments = documents.length;
 
   return (
     <div className={cn("relative", className)}>
-      {/* Selected Brain Display */}
+      {/* Selected Mode Display */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex w-full items-center justify-between gap-3 rounded-xl p-4 transition-all duration-200 hover:scale-[1.02]"
@@ -79,18 +179,20 @@ export const BrainContextSwitcher: React.FC<BrainContextSwitcherProps> = ({
           <div 
             className="flex h-10 w-10 items-center justify-center rounded-lg"
             style={{
-              background: selectedBrain.type === 'personal' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+              background: selectedMode === 'all' 
+                ? 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)'
+                : 'linear-gradient(135deg, #10b981 0%, #3b82f6 100%)',
               color: 'white'
             }}
           >
-            {getIcon(selectedBrain.icon)}
+            {selectedMode === 'all' ? <Building className="h-5 w-5" /> : <Folder className="h-5 w-5" />}
           </div>
           <div className="text-left">
             <p className="font-semibold" style={{ color: 'var(--text-primary)' }}>
-              {selectedBrain.name}
+              {currentSelection.name}
             </p>
             <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-              {selectedBrain.metadata?.documentCount} docs • {formatSize(selectedBrain.metadata?.indexedSize || 0)}
+              {currentSelection.documentCount} documents
             </p>
           </div>
         </div>
@@ -116,7 +218,7 @@ export const BrainContextSwitcher: React.FC<BrainContextSwitcherProps> = ({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: -10 }}
               transition={{ duration: 0.2, ease: "easeOut" }}
-              className="absolute left-0 right-0 z-50 mt-2 rounded-xl shadow-2xl ring-1 ring-black ring-opacity-5"
+              className="absolute left-0 right-0 z-50 mt-2 max-h-96 overflow-y-auto rounded-xl shadow-2xl ring-1 ring-black ring-opacity-5"
               style={{
                 background: 'var(--bg-primary)',
                 borderColor: 'var(--border-secondary)',
@@ -124,30 +226,33 @@ export const BrainContextSwitcher: React.FC<BrainContextSwitcherProps> = ({
               }}
             >
               <div className="p-2">
-                {defaultBrains.map((brain) => {
-                  const isSelected = brain.id === selectedBrain.id;
-                  return (
+                {isLoading ? (
+                  <div className="p-4 text-center" style={{ color: 'var(--text-secondary)' }}>
+                    Loading documents...
+                  </div>
+                ) : (
+                  <>
+                    {/* All Documents Option */}
                     <button
-                      key={brain.id}
                       onClick={() => {
-                        onBrainChange(brain);
+                        onSelectionChange('all');
                         setIsOpen(false);
                       }}
                       className={cn(
                         "flex w-full items-start gap-4 rounded-lg p-4 text-left transition-all duration-200",
-                        isSelected && "ring-2"
+                        selectedMode === 'all' && "ring-2"
                       )}
                       style={{
-                        background: isSelected ? 'var(--bg-accent)' : 'transparent',
-                        ringColor: isSelected ? 'var(--border-accent)' : 'transparent'
+                        background: selectedMode === 'all' ? 'var(--bg-accent)' : 'transparent',
+                        ringColor: selectedMode === 'all' ? 'var(--border-accent)' : 'transparent'
                       }}
                       onMouseEnter={(e) => {
-                        if (!isSelected) {
+                        if (selectedMode !== 'all') {
                           e.currentTarget.style.background = 'var(--bg-secondary)';
                         }
                       }}
                       onMouseLeave={(e) => {
-                        if (!isSelected) {
+                        if (selectedMode !== 'all') {
                           e.currentTarget.style.background = 'transparent';
                         }
                       }}
@@ -155,18 +260,18 @@ export const BrainContextSwitcher: React.FC<BrainContextSwitcherProps> = ({
                       <div 
                         className="flex h-12 w-12 items-center justify-center rounded-lg"
                         style={{
-                          background: brain.type === 'personal' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                          background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
                           color: 'white'
                         }}
                       >
-                        {getIcon(brain.icon)}
+                        <Building className="h-6 w-6" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>
-                            {brain.name}
+                            All Company Documents
                           </h3>
-                          {isSelected && (
+                          {selectedMode === 'all' && (
                             <div 
                               className="rounded-full px-2 py-1 text-xs font-medium"
                               style={{
@@ -179,27 +284,141 @@ export const BrainContextSwitcher: React.FC<BrainContextSwitcherProps> = ({
                           )}
                         </div>
                         <p className="mt-1 text-sm leading-5" style={{ color: 'var(--text-secondary)' }}>
-                          {brain.description}
+                          Search across all company documents and knowledge
                         </p>
                         <div className="mt-3 flex items-center gap-4 text-xs" style={{ color: 'var(--text-secondary)' }}>
                           <div className="flex items-center gap-1">
                             <FileText className="h-3 w-3" />
-                            {formatDocumentCount(brain.metadata?.documentCount || 0)} documents
+                            {totalDocuments} documents
                           </div>
                           <div className="flex items-center gap-1">
-                            <Database className="h-3 w-3" />
-                            {formatSize(brain.metadata?.indexedSize || 0)} indexed
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            Updated today
+                            <Folder className="h-3 w-3" />
+                            {clients.length} clients
                           </div>
                         </div>
                       </div>
                     </button>
-                  );
-                })}
+
+                    {/* Client Options */}
+                    {clients.length > 0 && (
+                      <>
+                        <div className="my-2 px-4">
+                          <div className="h-px" style={{ background: 'var(--border-secondary)' }} />
+                        </div>
+                        <div className="px-4 py-2">
+                          <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                            Filter by Client
+                          </p>
+                        </div>
+                      </>
+                    )}
+
+                    {clients.map((client) => {
+                      const clientDocs = documents.filter(d => d.client_id === client.client_id);
+                      const isSelected = selectedMode === 'client' && selectedClientId === client.client_id;
+                      
+                      return (
+                        <button
+                          key={client.client_id}
+                          onClick={() => {
+                            onSelectionChange('client', client.client_id);
+                            setIsOpen(false);
+                          }}
+                          className={cn(
+                            "flex w-full items-start gap-4 rounded-lg p-4 text-left transition-all duration-200",
+                            isSelected && "ring-2"
+                          )}
+                          style={{
+                            background: isSelected ? 'var(--bg-accent)' : 'transparent',
+                            ringColor: isSelected ? 'var(--border-accent)' : 'transparent'
+                          }}
+                          onMouseEnter={(e) => {
+                            if (!isSelected) {
+                              e.currentTarget.style.background = 'var(--bg-secondary)';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isSelected) {
+                              e.currentTarget.style.background = 'transparent';
+                            }
+                          }}
+                        >
+                          <div 
+                            className="flex h-12 w-12 items-center justify-center rounded-lg"
+                            style={{
+                              background: 'linear-gradient(135deg, #10b981 0%, #3b82f6 100%)',
+                              color: 'white'
+                            }}
+                          >
+                            <Folder className="h-6 w-6" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold" style={{ color: 'var(--text-primary)' }}>
+                                {client.client_name || client.name || `Client ${client.client_id || client.id}`}
+                              </h3>
+                              {isSelected && (
+                                <div 
+                                  className="rounded-full px-2 py-1 text-xs font-medium"
+                                  style={{
+                                    background: 'var(--bg-accent)',
+                                    color: 'var(--text-accent)'
+                                  }}
+                                >
+                                  Active
+                                </div>
+                              )}
+                            </div>
+                            <p className="mt-1 text-sm leading-5" style={{ color: 'var(--text-secondary)' }}>
+                              Documents specific to this client
+                            </p>
+                            <div className="mt-3 flex items-center gap-4 text-xs" style={{ color: 'var(--text-secondary)' }}>
+                              <div className="flex items-center gap-1">
+                                <FileText className="h-3 w-3" />
+                                {clientDocs.length} documents
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
               </div>
+
+              {/* Documents List - Show filtered documents based on selection */}
+              {documents.length > 0 && !isLoading && (
+                <>
+                  <div className="px-4 py-2 border-t" style={{ borderColor: 'var(--border-secondary)' }}>
+                    <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>
+                      {selectedMode === 'all' ? 'Recent Documents' : 'Client Documents'}
+                    </p>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto px-2 pb-2">
+                    {(selectedMode === 'all' 
+                      ? documents.slice(0, 10)
+                      : documents.filter(d => d.client_id === selectedClientId).slice(0, 10)
+                    ).map((doc) => (
+                      <div
+                        key={doc.id}
+                        className="flex items-center gap-2 px-4 py-2 text-xs"
+                        style={{ color: 'var(--text-secondary)' }}
+                      >
+                        <FileText className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate flex-1">{doc.filename}</span>
+                        <span className="text-xs opacity-60">
+                          {doc.client_name || 'Unknown Client'}
+                        </span>
+                      </div>
+                    ))}
+                    {selectedMode === 'client' && documents.filter(d => d.client_id === selectedClientId).length === 0 && (
+                      <div className="px-4 py-2 text-xs text-center" style={{ color: 'var(--text-secondary)' }}>
+                        No documents found for this client
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
 
               {/* Footer */}
               <div 
@@ -207,7 +426,7 @@ export const BrainContextSwitcher: React.FC<BrainContextSwitcherProps> = ({
                 style={{ borderColor: 'var(--border-secondary)' }}
               >
                 <p className="text-xs" style={{ color: 'var(--text-secondary)' }}>
-                  Switch between your personal knowledge base and your organization's collective intelligence.
+                  Choose to search all documents or filter by specific client.
                 </p>
               </div>
             </motion.div>
@@ -216,4 +435,4 @@ export const BrainContextSwitcher: React.FC<BrainContextSwitcherProps> = ({
       </AnimatePresence>
     </div>
   );
-}; 
+};
