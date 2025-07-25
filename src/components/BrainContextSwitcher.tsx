@@ -5,6 +5,13 @@ import { cn } from '../utils/cn';
 import { ApiService } from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 
+interface Client {
+  id?: number;
+  client_id?: number;
+  client_name?: string;
+  name?: string;
+}
+
 interface DocumentInfo {
   id: string;
   filename: string;
@@ -29,7 +36,7 @@ export const BrainContextSwitcher: React.FC<BrainContextSwitcherProps> = ({
   className
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [clients, setClients] = useState<any[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { user } = useAuthStore();
@@ -51,7 +58,7 @@ export const BrainContextSwitcher: React.FC<BrainContextSwitcherProps> = ({
       console.log('📥 Response keys:', Object.keys(clientsResponse || {}));
       
       // Try different possible response structures
-      let clientsArray = [];
+      let clientsArray: Client[] = [];
       if (clientsResponse?.clients) {
         clientsArray = clientsResponse.clients;
         console.log('✅ Found clients in response.clients:', clientsArray);
@@ -81,8 +88,14 @@ export const BrainContextSwitcher: React.FC<BrainContextSwitcherProps> = ({
         console.log(`🔄 Client ID: ${client.client_id}, Client Name: ${client.client_name}`);
         
         try {
-          const docsResponse = await ApiService.getClientDocuments(client.client_id.toString());
-          console.log(`📥 Documents response for client ${client.client_id}:`, docsResponse);
+          const clientId = client.client_id || client.id;
+          if (!clientId) {
+            console.warn(`Skipping client with missing ID:`, client);
+            continue;
+          }
+          
+          const docsResponse = await ApiService.getClientDocuments(clientId.toString());
+          console.log(`📥 Documents response for client ${clientId}:`, docsResponse);
           console.log(`📥 Response type:`, typeof docsResponse);
           console.log(`📥 Response keys:`, Object.keys(docsResponse || {}));
           
@@ -137,6 +150,18 @@ export const BrainContextSwitcher: React.FC<BrainContextSwitcherProps> = ({
     } finally {
       setIsLoading(false);
       console.log('✅ Loading complete');
+      
+      // If we have a selected client ID but no matching client, reset to 'all' mode
+      if (selectedMode === 'client' && selectedClientId) {
+        const clientExists = clients.some((c: Client) => 
+          (c.client_id !== undefined && c.client_id === selectedClientId) || 
+          (c.id !== undefined && c.id === selectedClientId)
+        );
+        if (!clientExists) {
+          console.log('⚠️ Selected client not found, resetting to all documents');
+          onSelectionChange('all');
+        }
+      }
     }
   };
 
@@ -149,8 +174,15 @@ export const BrainContextSwitcher: React.FC<BrainContextSwitcherProps> = ({
         documentCount: documents.length
       };
     } else {
-      const selectedClient = clients.find(c => c.client_id === selectedClientId);
-      const clientDocs = documents.filter(d => d.client_id === selectedClientId);
+      const selectedClient = clients.find((c: Client) => 
+        (c.client_id !== undefined && c.client_id === selectedClientId) || 
+        (c.id !== undefined && c.id === selectedClientId)
+      );
+      
+      const clientDocs = documents.filter((d: DocumentInfo) => 
+        (d.client_id !== undefined && d.client_id === selectedClientId) || 
+        (selectedClient?.client_id !== undefined && d.client_id === selectedClient.client_id)
+      );
       
       return {
         name: selectedClient?.client_name || selectedClient?.name || 'Select Client',
@@ -235,7 +267,9 @@ export const BrainContextSwitcher: React.FC<BrainContextSwitcherProps> = ({
                     {/* All Documents Option */}
                     <button
                       onClick={() => {
-                        onSelectionChange('all');
+                        if (selectedMode !== 'all') {
+                          onSelectionChange('all');
+                        }
                         setIsOpen(false);
                       }}
                       className={cn(
@@ -314,14 +348,28 @@ export const BrainContextSwitcher: React.FC<BrainContextSwitcherProps> = ({
                     )}
 
                     {clients.map((client) => {
-                      const clientDocs = documents.filter(d => d.client_id === client.client_id);
-                      const isSelected = selectedMode === 'client' && selectedClientId === client.client_id;
+                      const clientDocs = documents.filter((d: DocumentInfo) => 
+                        d.client_id !== undefined && 
+                        client.client_id !== undefined && 
+                        d.client_id === client.client_id
+                      );
+                      
+                      const isSelected = selectedMode === 'client' && 
+                        ((client.client_id !== undefined && selectedClientId === client.client_id) || 
+                         (client.id !== undefined && selectedClientId === client.id));
                       
                       return (
                         <button
                           key={client.client_id}
                           onClick={() => {
-                            onSelectionChange('client', client.client_id);
+                            const clientId = client.client_id ?? client.id;
+                            if (clientId === undefined) {
+                              console.error('Invalid client: missing both client_id and id');
+                              return;
+                            }
+                            if (selectedMode !== 'client' || selectedClientId !== clientId) {
+                              onSelectionChange('client', clientId);
+                            }
                             setIsOpen(false);
                           }}
                           className={cn(
